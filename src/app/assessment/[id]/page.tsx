@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
+import RequireAuth from "@/components/RequireAuth";
 import Editor from "@monaco-editor/react";
 import { useMutation, useAction, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -13,7 +14,14 @@ type ChatMessage = {
   logId: Id<"promptLogs"> | null;
 };
 
-export default function AssessmentPage({
+// Extracts the first fenced code block from an AI response so it can be
+// inserted directly into the editor without stray prose/markdown.
+function extractCode(text: string): string | null {
+  const match = text.match(/```(?:javascript|js)?\n([\s\S]*?)```/);
+  return match ? match[1].trim() : null;
+}
+
+function AssessmentPageInner({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -313,10 +321,20 @@ export default function AssessmentPage({
               Ask the AI for hints or help — every interaction is tracked.
             </p>
           )}
-          {chatHistory.map((msg, i) => (
+          {chatHistory.map((msg, i) => {
+            const extractedCode = extractCode(msg.response);
+            return (
             <div key={i} className="bg-gray-900 rounded-lg p-3 text-sm">
               <p className="text-purple-400 mb-1 font-medium">You: {msg.prompt}</p>
               <p className="text-gray-300 mb-2 whitespace-pre-wrap">{msg.response}</p>
+              {extractedCode && (
+                <button
+                  onClick={() => setCode(extractedCode)}
+                  className="text-xs bg-blue-700 hover:bg-blue-600 px-2 py-1 rounded mb-2 mr-2"
+                >
+                  ↳ Insert into Editor
+                </button>
+              )}
               {msg.action === "ASKED" ? (
                 <div className="flex gap-2">
                   <button
@@ -344,7 +362,8 @@ export default function AssessmentPage({
                 </span>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="p-4 border-t border-gray-800">
@@ -365,5 +384,13 @@ export default function AssessmentPage({
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AssessmentPage(props: { params: Promise<{ id: string }> }) {
+  return (
+    <RequireAuth role="STUDENT">
+      <AssessmentPageInner {...props} />
+    </RequireAuth>
   );
 }
