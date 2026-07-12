@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 const ACTION_WEIGHTS: Record<string, number> = {
   MODIFIED: 10,
@@ -8,30 +9,19 @@ const ACTION_WEIGHTS: Record<string, number> = {
   ASKED: 1,
 };
 
-// Creates a demo user (if needed) and starts a new assessment session
-// for a specific problem.
+// Starts a new assessment session for a specific problem, tied to the
+// currently logged-in (authenticated) user.
 export const create = mutation({
   args: { problemId: v.id("problems") },
   handler: async (ctx, { problemId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not signed in");
+
     const problem = await ctx.db.get(problemId);
     if (!problem) throw new Error("Problem not found");
 
-    let user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", "demo@codedna.dev"))
-      .unique();
-
-    if (!user) {
-      const userId = await ctx.db.insert("users", {
-        name: "Demo Candidate",
-        email: "demo@codedna.dev",
-        role: "STUDENT",
-      });
-      user = await ctx.db.get(userId);
-    }
-
     const sessionId = await ctx.db.insert("sessions", {
-      userId: user!._id,
+      userId,
       problemId,
       problemName: problem.title,
       code: problem.starterCode,
@@ -42,7 +32,7 @@ export const create = mutation({
   },
 });
 
-// Fetches a session with its user and full prompt log history — used by the replay page.
+// Fetches a session with its user and full prompt log history — used by replay/candidate detail pages.
 export const getById = query({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
@@ -89,6 +79,8 @@ export const listAll = query({
     return enriched;
   },
 });
+
+// Calculates the AI Collaboration Score from prompt logs and saves the final code + score.
 export const submitScore = mutation({
   args: { sessionId: v.id("sessions"), code: v.string() },
   handler: async (ctx, { sessionId, code }) => {

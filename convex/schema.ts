@@ -1,12 +1,17 @@
 import { defineSchema, defineTable } from "convex/server";
+import { authTables } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  ...authTables,
+
+  // Extend the auth-provided "users" table with our own custom field.
   users: defineTable({
-    name: v.string(),
-    email: v.string(),
-    role: v.union(v.literal("STUDENT"), v.literal("RECRUITER"), v.literal("ADMIN")),
-  }).index("by_email", ["email"]),
+    ...authTables.users.validator.fields,
+    role: v.optional(
+      v.union(v.literal("STUDENT"), v.literal("RECRUITER"), v.literal("ADMIN"))
+    ),
+  }).index("email", ["email"]),
 
   problems: defineTable({
     title: v.string(),

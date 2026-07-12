@@ -25,10 +25,10 @@ export default function Home() {
         </p>
 
         <div className="flex gap-4">
-          <Link href="/problems" className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg font-medium transition">
+          <Link href="/auth?flow=signUp&role=STUDENT" className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg font-medium transition">
             Get Started
           </Link>
-          <Link href="/problems" className="border border-gray-600 hover:border-gray-400 px-6 py-3 rounded-lg font-medium transition">
+          <Link href="/auth" className="border border-gray-600 hover:border-gray-400 px-6 py-3 rounded-lg font-medium transition">
             View Demo
           </Link>
         </div>
