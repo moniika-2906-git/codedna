@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvexAuth, useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { useRouter, useSearchParams } from "next/navigation";
 
 function AuthForm() {
   const { signIn } = useAuthActions();
+  const { isAuthenticated } = useConvexAuth();
+  const viewer = useQuery(api.users.viewer, isAuthenticated ? {} : "skip");
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -18,12 +22,20 @@ function AuthForm() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"STUDENT" | "RECRUITER">(initialRole);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  // Only redirect once Convex confirms the auth state AND we have the
+  // user's role — this avoids the race condition where we navigate away
+  // before the client actually holds a valid auth token.
+  useEffect(() => {
+    if (submitted && isAuthenticated && viewer) {
+      router.push(viewer.role === "RECRUITER" ? "/dashboard" : "/problems");
+    }
+  }, [submitted, isAuthenticated, viewer, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    setLoading(true);
     try {
       await signIn("password", {
         email,
@@ -32,17 +44,17 @@ function AuthForm() {
         name,
         role,
       });
-      router.push(role === "RECRUITER" ? "/dashboard" : "/problems");
+      setSubmitted(true);
     } catch {
       setError(
         flow === "signIn"
           ? "Invalid email or password."
           : "Could not create account. Try a different email."
       );
-    } finally {
-      setLoading(false);
     }
   }
+
+  const loading = submitted;
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center px-6">
