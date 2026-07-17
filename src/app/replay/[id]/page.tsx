@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { use } from "react";
-import Navbar from "@/components/Navbar";
+
 
 const ACTION_STYLES: Record<string, string> = {
   ASKED: "bg-gray-700 text-gray-300",
@@ -48,7 +48,7 @@ export default function ReplayPage({
 
   return (
     <div className="min-h-screen bg-black text-white px-6 py-10 max-w-3xl mx-auto">
-      <Navbar />
+      
       {/* Header */}
       <div className="mb-8">
         <span className="text-sm text-purple-400">Interview Replay</span>

@@ -5,7 +5,6 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { use } from "react";
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
 import RequireAuth from "@/components/RequireAuth";
 
 const ACTION_STYLES: Record<string, string> = {
@@ -40,7 +39,7 @@ export default function CandidateDetailPage({
   return (
     <RequireAuth role="RECRUITER">
       <div className="min-h-screen bg-black text-white">
-        <Navbar />
+        
 
         <div className="max-w-4xl mx-auto px-6 py-10">
           <Link

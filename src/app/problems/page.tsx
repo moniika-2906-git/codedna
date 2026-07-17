@@ -3,7 +3,6 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
 import RequireAuth from "@/components/RequireAuth";
 
 const DIFFICULTY_STYLES: Record<string, string> = {
@@ -18,7 +17,7 @@ export default function ProblemsPage() {
   return (
     <RequireAuth role="STUDENT">
       <div className="min-h-screen bg-black text-white">
-        <Navbar />
+    
         <div className="px-6 py-12 max-w-3xl mx-auto">
           <span className="text-sm text-purple-400">Choose a Problem</span>
           <h1 className="text-3xl font-bold mt-1 mb-8">Start Your Assessment</h1>

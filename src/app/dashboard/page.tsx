@@ -3,7 +3,6 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
 import RequireAuth from "@/components/RequireAuth";
 
 function ScoreBadge({ score }: { score: number | undefined }) {
@@ -55,7 +54,7 @@ export default function DashboardPage() {
   return (
     <RequireAuth role="RECRUITER">
       <div className="min-h-screen bg-black text-white">
-        <Navbar />
+       
 
         <div className="max-w-5xl mx-auto px-6 py-10">
           <span className="text-sm text-purple-400 font-medium">Recruiter Dashboard</span>
