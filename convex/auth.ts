@@ -6,7 +6,7 @@ const CustomPassword = Password({
     return {
       email: params.email as string,
       name: params.name as string,
-      role: (params.role as "STUDENT" | "RECRUITER" | "ADMIN") ?? "STUDENT",
+      role: (params.role as "STUDENT" | "RECRUITER" | " ") ?? "STUDENT",
     };
   },
 });
