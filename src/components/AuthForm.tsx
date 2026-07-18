@@ -1,10 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, FormEvent } from "react";
-import { useAuthActions } from "@convex-dev/auth/react";
-import { useConvexAuth, useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, FormEvent } from "react";
 import Link from "next/link";
 import { AlertCircle, Loader2, Terminal } from "lucide-react";
 import {
@@ -25,79 +21,35 @@ type AuthTab = "signin" | "signup";
 const fieldClass =
   "bg-zinc-950 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus-visible:ring-indigo-500 focus-visible:ring-offset-zinc-900";
 
-function AuthForm() {
-  const { signIn } = useAuthActions();
-  const { isAuthenticated } = useConvexAuth();
-  const viewer = useQuery(api.users.viewer, isAuthenticated ? {} : "skip");
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const initialFlow = searchParams.get("flow") === "signUp" ? "signup" : "signin";
-  const initialRole =
-    searchParams.get("role") === "RECRUITER" ? "RECRUITER" : "STUDENT";
-
-  const [activeTab, setActiveTab] = useState<AuthTab>(initialFlow);
+const AuthForm = () => {
+  const [activeTab, setActiveTab] = useState<AuthTab>("signin");
   const [error, setError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
 
-  // Sign in fields
   const [signInEmail, setSignInEmail] = useState("");
   const [signInPassword, setSignInPassword] = useState("");
   const [signInLoading, setSignInLoading] = useState(false);
 
-  // Sign up fields
   const [signUpName, setSignUpName] = useState("");
   const [signUpEmail, setSignUpEmail] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
-  const [role, setRole] = useState<Role>(initialRole);
+  const [role, setRole] = useState<Role>("STUDENT");
   const [signUpLoading, setSignUpLoading] = useState(false);
 
-  // Redirect once Convex confirms auth state + role is available
-  useEffect(() => {
-    if (submitted && isAuthenticated && viewer) {
-      router.push(viewer.role === "RECRUITER" ? "/dashboard" : "/problems");
-    }
-  }, [submitted, isAuthenticated, viewer, router]);
-
-  const handleSignIn = async (e: FormEvent) => {
+  const handleSignIn = (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setSignInLoading(true);
-    try {
-      await signIn("password", {
-        email: signInEmail,
-        password: signInPassword,
-        flow: "signIn",
-      });
-      setSubmitted(true);
-    } catch {
-      setError("Invalid email or password.");
-    } finally {
-      setSignInLoading(false);
-    }
+    // TODO: wire up Convex auth sign-in here
+    setSignInLoading(false);
   };
 
-  const handleSignUp = async (e: FormEvent) => {
+  const handleSignUp = (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setSignUpLoading(true);
-    try {
-      await signIn("password", {
-        email: signUpEmail,
-        password: signUpPassword,
-        flow: "signUp",
-        name: signUpName,
-        role,
-      });
-      setSubmitted(true);
-    } catch {
-      setError("Could not create account. Try a different email.");
-    } finally {
-      setSignUpLoading(false);
-    }
+    // TODO: wire up Convex auth sign-up here
+    setSignUpLoading(false);
   };
-
-  const loading = submitted;
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-zinc-950 p-4">
@@ -176,13 +128,13 @@ function AuthForm() {
                 </div>
                 <Button
                   type="submit"
-                  disabled={signInLoading || loading}
+                  disabled={signInLoading}
                   className="w-full bg-indigo-500 text-white hover:bg-indigo-400"
                 >
                   {signInLoading && (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   )}
-                  {signInLoading || loading ? "Please wait..." : "Sign In"}
+                  {signInLoading ? "Signing in..." : "Sign In"}
                 </Button>
               </form>
             </TabsContent>
@@ -226,7 +178,6 @@ function AuthForm() {
                     type="password"
                     placeholder="••••••••"
                     required
-                    minLength={8}
                     className={fieldClass}
                     value={signUpPassword}
                     onChange={(e) => setSignUpPassword(e.target.value)}
@@ -267,13 +218,13 @@ function AuthForm() {
                 </div>
                 <Button
                   type="submit"
-                  disabled={signUpLoading || loading}
+                  disabled={signUpLoading}
                   className="w-full bg-indigo-500 text-white hover:bg-indigo-400"
                 >
                   {signUpLoading && (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   )}
-                  {signUpLoading || loading ? "Please wait..." : "Sign Up"}
+                  {signUpLoading ? "Creating account..." : "Sign Up"}
                 </Button>
               </form>
             </TabsContent>
@@ -288,12 +239,6 @@ function AuthForm() {
       </div>
     </div>
   );
-}
+};
 
-export default function AuthPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-zinc-950" />}>
-      <AuthForm />
-    </Suspense>
-  );
-}
+export default AuthForm;
