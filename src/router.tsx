@@ -1,6 +1,8 @@
 import AppLayout from "./components/layout/AppLayout";
 import LandingPage from "./pages/landing";
 import AuthPage from "./pages/auth";
+import ProblemsPage from "./pages/problems";
+import AssessmentPage from "./pages/assessment";
 import NotFound from "./pages/NotFound";
 
 export const routers = [
@@ -18,6 +20,16 @@ export const routers = [
         path: "auth",
         name: "auth",
         element: <AuthPage />,
+      },
+      {
+        path: "problems",
+        name: "problems",
+        element: <ProblemsPage />,
+      },
+      {
+        path: "assessment/:sessionId",
+        name: "assessment",
+        element: <AssessmentPage />,
       },
       /* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */
       {
