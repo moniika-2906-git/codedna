@@ -3,6 +3,8 @@ import LandingPage from "./pages/landing";
 import AuthPage from "./pages/auth";
 import ProblemsPage from "./pages/problems";
 import AssessmentPage from "./pages/assessment";
+import DashboardPage from "./pages/dashboard";
+import CandidateDetailPage from "./pages/dashboard/candidate";
 import NotFound from "./pages/NotFound";
 
 export const routers = [
@@ -30,6 +32,16 @@ export const routers = [
         path: "assessment/:sessionId",
         name: "assessment",
         element: <AssessmentPage />,
+      },
+      {
+        path: "dashboard",
+        name: "dashboard",
+        element: <DashboardPage />,
+      },
+      {
+        path: "dashboard/candidate/:sessionId",
+        name: "dashboard-candidate",
+        element: <CandidateDetailPage />,
       },
       /* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */
       {
