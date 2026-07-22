@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as http from "../http.js";
 import type * as problems from "../problems.js";
 import type * as promptLogs from "../promptLogs.js";
 import type * as sessions from "../sessions.js";
@@ -22,6 +23,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  http: typeof http;
   problems: typeof problems;
   promptLogs: typeof promptLogs;
   sessions: typeof sessions;
