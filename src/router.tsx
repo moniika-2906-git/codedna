@@ -1,5 +1,6 @@
 import AppLayout from "./components/layout/AppLayout";
 import LandingPage from "./pages/landing";
+import AuthPage from "./pages/auth";
 import NotFound from "./pages/NotFound";
 
 export const routers = [
@@ -12,6 +13,11 @@ export const routers = [
         index: true,
         name: "home",
         element: <LandingPage />,
+      },
+      {
+        path: "auth",
+        name: "auth",
+        element: <AuthPage />,
       },
       /* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */
       {
