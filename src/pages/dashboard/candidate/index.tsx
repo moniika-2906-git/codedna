@@ -1,11 +1,12 @@
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "convex/react";
-import { ArrowLeft, MessageSquare } from "lucide-react";
+import { ArrowLeft, History, MessageSquare } from "lucide-react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { ScoreBadge } from "../ScoreBadge";
 
 const CandidateDetailPage = () => {
@@ -47,7 +48,19 @@ const CandidateDetailPage = () => {
                     {session.problemName}
                   </p>
                 </div>
-                <ScoreBadge score={session.score ?? 0} />
+                <div className="flex shrink-0 flex-col items-end gap-3">
+                  <ScoreBadge score={session.score ?? 0} />
+                  <Button
+                    asChild
+                    size="sm"
+                    className="gap-1.5 bg-indigo-500 text-zinc-50 hover:bg-indigo-400"
+                  >
+                    <Link to={`/replay/${sessionId}`}>
+                      <History className="h-4 w-4" />
+                      View Replay
+                    </Link>
+                  </Button>
+                </div>
               </CardHeader>
             </Card>
 

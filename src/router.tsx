@@ -5,6 +5,7 @@ import ProblemsPage from "./pages/problems";
 import AssessmentPage from "./pages/assessment";
 import DashboardPage from "./pages/dashboard";
 import CandidateDetailPage from "./pages/dashboard/candidate";
+import ReplayPage from "./pages/replay";
 import NotFound from "./pages/NotFound";
 
 export const routers = [
@@ -42,6 +43,11 @@ export const routers = [
         path: "dashboard/candidate/:sessionId",
         name: "dashboard-candidate",
         element: <CandidateDetailPage />,
+      },
+      {
+        path: "replay/:sessionId",
+        name: "replay",
+        element: <ReplayPage />,
       },
       /* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */
       {
