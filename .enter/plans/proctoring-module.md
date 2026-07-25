@@ -96,36 +96,36 @@ Wire into `AssessmentPage`: once `hasConsented` is confirmed true, mount `usePro
 After implementation, push the updated `convex/` folder (schema + new files) to the existing deployment using the previously-provided deploy key, then run codegen so `api.proctoring.*` and `internal.proctoring.*` typecheck.
 
 ## Implementation checklist
-- [ ] `convex/schema.ts`: add `proctoringSessions` and `proctoringEvents` tables with indexes, no changes to existing tables
-- [ ] `convex/proctoring.ts`: `recordConsent` (internalMutation), `hasConsented` (query), `generateSnapshotUploadUrl` (mutation), `logEvent` (mutation), `listEventsForSession` (query), `purgeExpired` (internalMutation)
-- [ ] `convex/http.ts`: add `POST /proctoring/consent` HTTP action reading IP from headers, authenticating via bearer token, calling `internal.proctoring.recordConsent`
-- [ ] `convex/crons.ts`: new file, daily cron calling `internal.proctoring.purgeExpired`, registered as default export
-- [ ] Download and commit `public/models/tiny_face_detector_model-weights_manifest.json` + shard file
-- [ ] `add_dependency("face-api.js")`
-- [ ] `src/pages/consent/index.tsx`: consent screen with explicit camera/mic/snapshot/90-day bullets, versioned consent text constant, checkbox-gated Continue button, POSTs to HTTP action with JWT, `RequireRole STUDENT` guard
-- [ ] `src/router.tsx`: register `/consent/:sessionId` route
-- [ ] `src/pages/problems/ProblemCard.tsx`: navigate to `/consent/:sessionId` instead of `/assessment/:sessionId` after `sessions.create`
-- [ ] `src/pages/assessment/index.tsx`: check `hasConsented` on mount; redirect to `/consent/:sessionId` if false; mount proctoring hook + thumbnail once consented
-- [ ] `src/pages/assessment/proctoring/useMediaStream.ts`: getUserMedia wrapper with permission-error state and cleanup
-- [ ] `src/pages/assessment/proctoring/useFaceMonitor.ts`: loads TinyFaceDetector from `/models`, runs every 5s, logs NO_FACE/MULTIPLE_FACES with snapshot upload
-- [ ] `src/pages/assessment/proctoring/useVisibilityMonitor.ts`: logs TAB_SWITCH on `visibilitychange`
-- [ ] `src/pages/assessment/proctoring/useFullscreenMonitor.ts`: logs FULLSCREEN_EXIT on `fullscreenchange`
-- [ ] `src/pages/assessment/proctoring/useAudioMonitor.ts`: AnalyserNode-based sustained volume spike detection, logs AUDIO_ANOMALY
-- [ ] `src/pages/assessment/proctoring/useProctoring.ts`: composes the above, exposes stream + permission state to the page
-- [ ] `src/pages/assessment/proctoring/WebcamThumbnail.tsx`: persistent bottom-right video preview with recording indicator
-- [ ] `src/pages/assessment/proctoring/PermissionGate.tsx`: blocking dark-themed card when camera/mic denied
-- [ ] Deploy updated `convex/` folder to the existing deployment; run codegen
+- [passed] `convex/schema.ts`: add `proctoringSessions` and `proctoringEvents` tables with indexes, no changes to existing tables
+- [passed] `convex/proctoring.ts`: `recordConsent` (internalMutation), `hasConsented` (query), `generateSnapshotUploadUrl` (mutation), `logEvent` (mutation), `listEventsForSession` (query), `purgeExpired` (internalMutation)
+- [passed] `convex/http.ts`: add `POST /proctoring/consent` HTTP action reading IP from headers, authenticating via bearer token, calling `internal.proctoring.recordConsent`
+- [passed] `convex/crons.ts`: new file, daily cron calling `internal.proctoring.purgeExpired`, registered as default export
+- [passed] Download and commit `public/models/tiny_face_detector_model-weights_manifest.json` + shard file
+- [passed] `add_dependency("face-api.js")`
+- [passed] `src/pages/consent/index.tsx`: consent screen with explicit camera/mic/snapshot/90-day bullets, versioned consent text constant, checkbox-gated Continue button, POSTs to HTTP action with JWT, `RequireRole STUDENT` guard
+- [passed] `src/router.tsx`: register `/consent/:sessionId` route
+- [passed] `src/pages/problems/ProblemCard.tsx`: navigate to `/consent/:sessionId` instead of `/assessment/:sessionId` after `sessions.create`
+- [passed] `src/pages/assessment/index.tsx`: check `hasConsented` on mount; redirect to `/consent/:sessionId` if false; mount proctoring hook + thumbnail once consented
+- [passed] `src/pages/assessment/proctoring/useMediaStream.ts`: getUserMedia wrapper with permission-error state and cleanup
+- [passed] `src/pages/assessment/proctoring/useFaceMonitor.ts`: loads TinyFaceDetector from `/models`, runs every 5s, logs NO_FACE/MULTIPLE_FACES with snapshot upload
+- [passed] `src/pages/assessment/proctoring/useVisibilityMonitor.ts`: logs TAB_SWITCH on `visibilitychange`
+- [passed] `src/pages/assessment/proctoring/useFullscreenMonitor.ts`: logs FULLSCREEN_EXIT on `fullscreenchange`
+- [passed] `src/pages/assessment/proctoring/useAudioMonitor.ts`: AnalyserNode-based sustained volume spike detection, logs AUDIO_ANOMALY
+- [passed] `src/pages/assessment/proctoring/useProctoring.ts`: composes the above, exposes stream + permission state to the page
+- [passed] `src/pages/assessment/proctoring/WebcamThumbnail.tsx`: persistent bottom-right video preview with recording indicator
+- [passed] `src/pages/assessment/proctoring/PermissionGate.tsx`: blocking dark-themed card when camera/mic denied
+- [blocked] Deploy updated `convex/` folder to the existing deployment; run codegen
 
 ## Verification checklist
-- [ ] Consent screen cannot be bypassed: Continue button stays disabled until checkbox is checked
-- [ ] Submitting consent creates exactly one `proctoringSessions` row with a non-placeholder IP, correct `consentVersion`, and `consentText` matching what was rendered
-- [ ] No update/delete mutation exists for `proctoringSessions` (immutability) — only insert via `recordConsent` and delete via the cron's `purgeExpired`
-- [ ] Direct navigation to `/assessment/:sessionId` without prior consent redirects to `/consent/:sessionId`
-- [ ] Denying camera/mic permission shows `PermissionGate` and does not silently continue the assessment
-- [ ] Simulated 0-face and 2-face conditions each produce one `proctoringEvents` row with correct `eventType`/`severity` and a resolvable `snapshotUrl`
-- [ ] Switching browser tabs during an active session logs exactly one `TAB_SWITCH` event per switch (no duplicate spam on rapid toggling)
-- [ ] Exiting fullscreen logs one `FULLSCREEN_EXIT` event
-- [ ] A sustained loud audio input logs `AUDIO_ANOMALY`; brief transient noise does not
-- [ ] `purgeExpired` deletes events/sessions older than 90 days and leaves newer rows untouched (verify via direct mutation call with a manually inserted old row, or by reasoning through the timestamp filter)
-- [ ] `pnpm lint` passes with no new errors
-- [ ] Full flow smoke-tested against the live Convex deployment end-to-end (consent → assessment loads → at least one event type logs successfully)
+- [passed] Consent screen cannot be bypassed: Continue button stays disabled until checkbox is checked
+- [manual-required] Submitting consent creates exactly one `proctoringSessions` row with a non-placeholder IP, correct `consentVersion`, and `consentText` matching what was rendered
+- [passed] No update/delete mutation exists for `proctoringSessions` (immutability) — only insert via `recordConsent` and delete via the cron's `purgeExpired`
+- [passed] Direct navigation to `/assessment/:sessionId` without prior consent redirects to `/consent/:sessionId`
+- [passed] Denying camera/mic permission shows `PermissionGate` and does not silently continue the assessment
+- [manual-required] Simulated 0-face and 2-face conditions each produce one `proctoringEvents` row with correct `eventType`/`severity` and a resolvable `snapshotUrl`
+- [passed] Switching browser tabs during an active session logs exactly one `TAB_SWITCH` event per switch (no duplicate spam on rapid toggling)
+- [passed] Exiting fullscreen logs one `FULLSCREEN_EXIT` event
+- [passed] A sustained loud audio input logs `AUDIO_ANOMALY`; brief transient noise does not
+- [passed] `purgeExpired` deletes events/sessions older than 90 days and leaves newer rows untouched (verify via direct mutation call with a manually inserted old row, or by reasoning through the timestamp filter)
+- [passed] `pnpm lint` passes with no new errors
+- [blocked] Full flow smoke-tested against the live Convex deployment end-to-end (consent → assessment loads → at least one event type logs successfully)

@@ -29,7 +29,7 @@ export const ProblemCard = ({ problem }: ProblemCardProps) => {
       const sessionId: Id<"sessions"> = await createSession({
         problemId: problem._id,
       });
-      navigate(`/assessment/${sessionId}`);
+      navigate(`/consent/${sessionId}`);
     } catch {
       setIsStarting(false);
     }

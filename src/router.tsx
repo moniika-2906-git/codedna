@@ -2,6 +2,7 @@ import AppLayout from "./components/layout/AppLayout";
 import LandingPage from "./pages/landing";
 import AuthPage from "./pages/auth";
 import ProblemsPage from "./pages/problems";
+import ConsentPage from "./pages/consent";
 import AssessmentPage from "./pages/assessment";
 import DashboardPage from "./pages/dashboard";
 import CandidateDetailPage from "./pages/dashboard/candidate";
@@ -28,6 +29,11 @@ export const routers = [
         path: "problems",
         name: "problems",
         element: <ProblemsPage />,
+      },
+      {
+        path: "consent/:sessionId",
+        name: "consent",
+        element: <ConsentPage />,
       },
       {
         path: "assessment/:sessionId",

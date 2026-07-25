@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
 import { Loader2, CheckCircle2 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
@@ -16,8 +16,11 @@ import { CodeEditor } from "./CodeEditor";
 import { ChatPanel } from "./ChatPanel";
 import { SessionTimer } from "./SessionTimer";
 import { SubmissionResult } from "./SubmissionResult";
+import { useProctoring } from "./proctoring/useProctoring";
+import { WebcamThumbnail } from "./proctoring/WebcamThumbnail";
+import { PermissionGate } from "./proctoring/PermissionGate";
 
-const AssessmentPage = () => {
+const AssessmentContent = () => {
   const { sessionId: sessionIdParam } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const sessionId = sessionIdParam as Id<"sessions"> | undefined;
@@ -30,7 +33,15 @@ const AssessmentPage = () => {
     api.problems.getById,
     session?.problemId ? { problemId: session.problemId } : "skip"
   );
+  const consent = useQuery(
+    api.proctoring.hasConsented,
+    sessionId ? { sessionId } : "skip"
+  );
   const submitScore = useMutation(api.sessions.submitScore);
+
+  // Proctoring monitors only spin up once consent is confirmed true. While
+  // consent is loading or false, no camera/mic is requested.
+  const proctoring = useProctoring(sessionId, consent === true);
 
   const [code, setCode] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,8 +73,25 @@ const AssessmentPage = () => {
     }
   };
 
+  // Consent gate: direct URL access without prior consent bounces to consent.
+  if (consent === false && sessionId) {
+    return <Navigate to={`/consent/${sessionId}`} replace />;
+  }
+
+  // Permission gate: a media-acquisition failure (permission denied, no
+  // camera, etc.) blocks the assessment — proctoring must not silently skip.
+  if (consent === true && proctoring.blocked) {
+    return <PermissionGate onRetry={proctoring.retry} />;
+  }
+
+  const isLoading =
+    consent === undefined ||
+    session === undefined ||
+    problem === undefined ||
+    code === null;
+
   return (
-    <RequireRole allowedRoles={["STUDENT"]} redirectTo="/dashboard">
+    <>
       {result ? (
         <SubmissionResult
           score={result.score}
@@ -71,7 +99,7 @@ const AssessmentPage = () => {
           totalPrompts={result.totalPrompts}
           onBackToProblems={() => navigate("/problems")}
         />
-      ) : session === undefined || problem === undefined || code === null ? (
+      ) : isLoading ? (
         <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
         </div>
@@ -80,52 +108,61 @@ const AssessmentPage = () => {
           Session or problem not found.
         </div>
       ) : (
-        <div className="flex h-[calc(100vh-4rem)] flex-col">
-          <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
-            <p className="text-sm font-medium text-zinc-300">
-              {problem.title}
-            </p>
-            <div className="flex items-center gap-3">
-              <SessionTimer startedAt={session.startedAt} />
-              <Button
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="gap-1.5 bg-indigo-500 text-zinc-50 hover:bg-indigo-400"
-              >
-                {isSubmitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4" />
-                )}
-                Submit
-              </Button>
-            </div>
-          </div>
-
-          <ResizablePanelGroup direction="horizontal" className="flex-1">
-            <ResizablePanel defaultSize={35} minSize={25}>
-              <ProblemPanel problem={problem} />
-            </ResizablePanel>
-            <ResizableHandle withHandle className="bg-zinc-800" />
-            <ResizablePanel defaultSize={40} minSize={25}>
-              <div className="h-full p-3">
-                <CodeEditor value={code} onChange={setCode} />
+        <>
+          <div className="flex h-[calc(100vh-4rem)] flex-col">
+            <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
+              <p className="text-sm font-medium text-zinc-300">
+                {problem.title}
+              </p>
+              <div className="flex items-center gap-3">
+                <SessionTimer startedAt={session.startedAt} />
+                <Button
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  className="gap-1.5 bg-indigo-500 text-zinc-50 hover:bg-indigo-400"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4" />
+                  )}
+                  Submit
+                </Button>
               </div>
-            </ResizablePanel>
-            <ResizableHandle withHandle className="bg-zinc-800" />
-            <ResizablePanel defaultSize={25} minSize={20}>
-              <ChatPanel
-                sessionId={sessionId as Id<"sessions">}
-                onInsertCode={(snippet) =>
-                  setCode((prev) => `${prev ?? ""}\n\n${snippet}`)
-                }
-              />
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </div>
+            </div>
+
+            <ResizablePanelGroup direction="horizontal" className="flex-1">
+              <ResizablePanel defaultSize={35} minSize={25}>
+                <ProblemPanel problem={problem} />
+              </ResizablePanel>
+              <ResizableHandle withHandle className="bg-zinc-800" />
+              <ResizablePanel defaultSize={40} minSize={25}>
+                <div className="h-full p-3">
+                  <CodeEditor value={code} onChange={setCode} />
+                </div>
+              </ResizablePanel>
+              <ResizableHandle withHandle className="bg-zinc-800" />
+              <ResizablePanel defaultSize={25} minSize={20}>
+                <ChatPanel
+                  sessionId={sessionId as Id<"sessions">}
+                  onInsertCode={(snippet) =>
+                    setCode((prev) => `${prev ?? ""}\n\n${snippet}`)
+                  }
+                />
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </div>
+          <WebcamThumbnail stream={proctoring.stream} />
+        </>
       )}
-    </RequireRole>
+    </>
   );
 };
+
+const AssessmentPage = () => (
+  <RequireRole allowedRoles={["STUDENT"]} redirectTo="/dashboard">
+    <AssessmentContent />
+  </RequireRole>
+);
 
 export default AssessmentPage;

@@ -9,8 +9,10 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as problems from "../problems.js";
+import type * as proctoring from "../proctoring.js";
 import type * as promptLogs from "../promptLogs.js";
 import type * as sessions from "../sessions.js";
 import type * as users from "../users.js";
@@ -23,8 +25,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  crons: typeof crons;
   http: typeof http;
   problems: typeof problems;
+  proctoring: typeof proctoring;
   promptLogs: typeof promptLogs;
   sessions: typeof sessions;
   users: typeof users;
