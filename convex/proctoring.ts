@@ -1,21 +1,78 @@
-import { internalMutation, mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  query,
+  QueryCtx,
+  MutationCtx,
+} from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 
-// 90-day retention window for proctoring data, per the stated policy.
+// 90-day retention window for proctoring event/snapshot data. The
+// proctoringSessions audit trail itself is never deleted (see purgeExpired).
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+
+/**
+ * Canonical consent text, keyed by version. The client only ever sends a
+ * `consentVersion` string — never the text itself — so a tampered/forged
+ * client payload can never end up persisted as if it were what the user saw.
+ * Bump the version key whenever the wording materially changes; never mutate
+ * an existing entry's text (would falsify already-recorded consent history).
+ */
+const CONSENT_TEXT_BY_VERSION: Record<string, string> = {
+  v1: [
+    "CodeDNA assessment proctoring consent (v1):",
+    "We will access your camera",
+    "We will access your microphone",
+    "We will capture periodic snapshots during your session",
+    "We will detect tab switches and fullscreen exits",
+    "Data is retained for 90 days then deleted",
+  ].join("\n"),
+};
+
+export const LATEST_CONSENT_VERSION = "v1";
+
+/**
+ * Shared ownership check, reused by every function that takes a `sessionId`
+ * (hasConsented, generateSnapshotUploadUrl, logEvent). Resolves the caller's
+ * user id via `getAuthUserId` — NOT a raw `identity.subject` comparison,
+ * because @convex-dev/auth encodes `subject` as `"<userId>::<authSessionId>"`,
+ * so a literal `session.userId === identity.subject` check would always be
+ * false — and verifies they own the assessment `sessions` row referenced by
+ * `sessionId`. Throws on any failure; callers that need a boolean instead
+ * (like `hasConsented`) catch and translate.
+ */
+async function requireSessionOwner(
+  ctx: QueryCtx | MutationCtx,
+  sessionId: Id<"sessions">
+): Promise<{ userId: Id<"users"> }> {
+  const userId = await getAuthUserId(ctx);
+  if (!userId) {
+    throw new Error("Not signed in");
+  }
+  const session = await ctx.db.get(sessionId);
+  if (!session || session.userId !== userId) {
+    throw new Error("Session does not belong to this user");
+  }
+  return { userId };
+}
 
 /**
  * Internal mutation: records a student's proctoring consent.
  *
- * Called ONLY from the `POST /proctoring/consent` HTTP action (see convex/http.ts),
- * never directly from the client — this is what lets us capture the caller's IP
- * and identity server-side where they cannot be spoofed.
+ * Called ONLY from the `POST /proctoring/consent` HTTP action (see
+ * convex/http.ts), never directly from the client — this is what lets us
+ * capture the caller's IP and identity server-side where they cannot be
+ * spoofed. Only `consentVersion` is accepted; the exact `consentText` is
+ * resolved server-side from `CONSENT_TEXT_BY_VERSION` so a client can never
+ * submit text that differs from what it actually displayed.
  *
- * Immutability: there is intentionally NO update/patch function for
- * proctoringSessions. The only writers are this insert and the `purgeExpired`
- * cron delete. Re-submitting consent for the same session is idempotent: the
- * original record is left untouched and its id is returned.
+ * Insert-only: there is no update/patch function for proctoringSessions other
+ * than `markPurged`, which may only ever set `purgedAt`. Re-submitting
+ * consent for the same session is idempotent — the original record is kept
+ * and its id returned, never overwritten.
  */
 export const recordConsent = internalMutation({
   args: {
@@ -23,20 +80,21 @@ export const recordConsent = internalMutation({
     userId: v.id("users"),
     ipAddress: v.string(),
     consentVersion: v.string(),
-    consentText: v.string(),
   },
-  handler: async (ctx, args) => {
-    const { sessionId, userId, ipAddress, consentVersion, consentText } = args;
+  handler: async (ctx, { sessionId, userId, ipAddress, consentVersion }) => {
+    const consentText = CONSENT_TEXT_BY_VERSION[consentVersion];
+    if (!consentText) {
+      throw new Error(`Unknown consent version: ${consentVersion}`);
+    }
 
-    // Defensive: the session must exist and belong to the consenting user, so
-    // a caller can never lodge a consent record against someone else's session.
+    // The session must exist and belong to the consenting user, so a caller
+    // can never lodge a consent record against someone else's session.
     const session = await ctx.db.get(sessionId);
     if (!session || session.userId !== userId) {
       throw new Error("Session does not belong to this user");
     }
 
-    // Idempotent: if a consent record already exists for this session, keep
-    // the original (immutability) and return its id instead of duplicating.
+    // Idempotent: keep the original record (insert-only) if one exists.
     const existing = await ctx.db
       .query("proctoringSessions")
       .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
@@ -48,10 +106,10 @@ export const recordConsent = internalMutation({
     return await ctx.db.insert("proctoringSessions", {
       sessionId,
       userId,
-      consentedAt: Date.now(),
-      ipAddress,
       consentVersion,
       consentText,
+      ipAddress,
+      createdAt: Date.now(),
     });
   },
 });
@@ -59,80 +117,64 @@ export const recordConsent = internalMutation({
 /**
  * Whether the caller has consented to proctoring for the given session.
  * Used client-side to gate camera/mic requests and the assessment itself.
- * Returns false if the caller isn't signed in or has no consent record, or if
- * the session belongs to a different user.
+ * Uses the shared ownership check; returns false (rather than throwing) for
+ * any unauthenticated/not-owned/no-record case since this is a plain gate.
  */
 export const hasConsented = query({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return false;
+    let userId: Id<"users">;
+    try {
+      ({ userId } = await requireSessionOwner(ctx, sessionId));
+    } catch {
+      return false;
+    }
     const record = await ctx.db
       .query("proctoringSessions")
       .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
       .first();
-    if (!record) return false;
-    return record.userId === userId;
+    return !!record && record.userId === userId;
   },
 });
 
 /**
- * Returns a one-shot Convex file-storage upload URL. The client POSTs a
- * snapshot blob to that URL and receives a `storageId` it then passes to
- * `logEvent`. Auth-required so anonymous clients can't occupy storage.
+ * Returns a one-shot Convex file-storage upload URL for a proctoring
+ * snapshot. Ownership-checked via the shared helper so a client can't
+ * generate upload URLs against a session it doesn't own.
  */
 export const generateSnapshotUploadUrl = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not signed in");
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }) => {
+    await requireSessionOwner(ctx, sessionId);
     return await ctx.storage.generateUploadUrl();
   },
 });
 
 /**
- * Logs a single immutable proctoring anomaly event. Optionally attaches a
- * snapshot (already uploaded to file storage) by its storage id; the readable
- * URL is resolved server-side so the client can't forge it.
+ * Logs a single proctoring anomaly event. Ownership-checked via the shared
+ * helper. Optionally attaches a snapshot (already uploaded to file storage)
+ * by its storage id.
  */
 export const logEvent = mutation({
   args: {
     sessionId: v.id("sessions"),
     eventType: v.union(
-      v.literal("NO_FACE"),
-      v.literal("MULTIPLE_FACES"),
-      v.literal("TAB_SWITCH"),
-      v.literal("FULLSCREEN_EXIT"),
-      v.literal("AUDIO_ANOMALY")
+      v.literal("no-face"),
+      v.literal("multi-face"),
+      v.literal("tab-switch"),
+      v.literal("fullscreen-exit"),
+      v.literal("audio-anomaly")
     ),
-    severity: v.union(
-      v.literal("LOW"),
-      v.literal("MEDIUM"),
-      v.literal("HIGH")
-    ),
-    snapshotStorageId: v.optional(v.id("_storage")),
+    storageId: v.optional(v.id("_storage")),
   },
-  handler: async (ctx, { sessionId, eventType, severity, snapshotStorageId }) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not signed in");
-
-    // Only allow logging against a session the caller owns.
-    const session = await ctx.db.get(sessionId);
-    if (!session || session.userId !== userId) {
-      throw new Error("Session does not belong to this user");
-    }
-
-    const snapshotUrl = snapshotStorageId
-      ? (await ctx.storage.getUrl(snapshotStorageId)) ?? undefined
-      : undefined;
+  handler: async (ctx, { sessionId, eventType, storageId }) => {
+    await requireSessionOwner(ctx, sessionId);
 
     return await ctx.db.insert("proctoringEvents", {
       sessionId,
       eventType,
-      severity,
       timestamp: Date.now(),
-      snapshotStorageId,
-      snapshotUrl,
+      storageId,
     });
   },
 });
@@ -140,11 +182,13 @@ export const logEvent = mutation({
 /**
  * Lists all proctoring events for a session, oldest first. Exposed for the
  * recruiter dashboard / replay pages to surface anomalies (not wired into UI
- * in this task, but available for later use).
+ * in this task, but available for later use). Ownership-checked via the same
+ * shared helper used everywhere else.
  */
 export const listEventsForSession = query({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
+    await requireSessionOwner(ctx, sessionId);
     return await ctx.db
       .query("proctoringEvents")
       .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
@@ -154,44 +198,71 @@ export const listEventsForSession = query({
 });
 
 /**
- * Internal mutation run by the daily cron (see convex/crons.ts). Deletes
- * proctoring events older than the 90-day retention window — including their
- * snapshot blobs from file storage — and purges expired proctoring sessions.
- * Newer rows are left untouched.
+ * The ONLY function permitted to patch a `proctoringSessions` row, and it may
+ * ONLY ever set `purgedAt`. Never touches ipAddress/consentText/consentVersion
+ * or any other field — those remain exactly as recorded at consent time,
+ * forever, since this table is the audit trail proving consent was given.
+ */
+export const markPurged = internalMutation({
+  args: { proctoringSessionId: v.id("proctoringSessions") },
+  handler: async (ctx, { proctoringSessionId }) => {
+    await ctx.db.patch(proctoringSessionId, { purgedAt: Date.now() });
+  },
+});
+
+/**
+ * Internal mutation run by the daily cron (see convex/crons.ts).
+ *
+ * IMPORTANT: this NEVER deletes `proctoringSessions` rows — that table is the
+ * permanent audit trail proving consent was given. It only deletes
+ * `proctoringEvents` rows (and their snapshot blobs) for sessions whose
+ * consent predates the 90-day retention window, then marks the session
+ * `purgedAt` via `markPurged` (the single function allowed to patch that
+ * table, and only that one field).
  */
 export const purgeExpired = internalMutation({
   args: {},
   handler: async (ctx) => {
     const cutoff = Date.now() - RETENTION_MS;
 
-    const expiredEvents = await ctx.db
-      .query("proctoringEvents")
-      .filter((q) => q.lt(q.field("timestamp"), cutoff))
-      .collect();
-
-    for (const evt of expiredEvents) {
-      if (evt.snapshotStorageId) {
-        try {
-          await ctx.storage.delete(evt.snapshotStorageId);
-        } catch {
-          // Blob may already be gone; the event row should still be deleted.
-        }
-      }
-      await ctx.db.delete(evt._id);
-    }
-
-    const expiredSessions = await ctx.db
+    const expiredConsents = await ctx.db
       .query("proctoringSessions")
-      .filter((q) => q.lt(q.field("consentedAt"), cutoff))
+      .filter((q) =>
+        q.and(
+          q.lt(q.field("createdAt"), cutoff),
+          q.eq(q.field("purgedAt"), undefined)
+        )
+      )
       .collect();
 
-    for (const s of expiredSessions) {
-      await ctx.db.delete(s._id);
+    let deletedEvents = 0;
+
+    for (const consent of expiredConsents) {
+      const events = await ctx.db
+        .query("proctoringEvents")
+        .withIndex("by_session", (q) => q.eq("sessionId", consent.sessionId))
+        .collect();
+
+      for (const evt of events) {
+        if (evt.storageId) {
+          try {
+            await ctx.storage.delete(evt.storageId);
+          } catch {
+            // Blob may already be gone; the event row should still be deleted.
+          }
+        }
+        await ctx.db.delete(evt._id);
+        deletedEvents++;
+      }
+
+      await ctx.runMutation(internal.proctoring.markPurged, {
+        proctoringSessionId: consent._id,
+      });
     }
 
     return {
-      deletedEvents: expiredEvents.length,
-      deletedSessions: expiredSessions.length,
+      purgedConsentRecords: expiredConsents.length,
+      deletedEvents,
     };
   },
 });

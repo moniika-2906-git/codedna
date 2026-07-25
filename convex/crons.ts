@@ -8,7 +8,7 @@ const crons = cronJobs();
 // Scheduled at 03:00 UTC to run off-peak.
 crons.daily(
   "purge-old-proctoring-data",
-  { hour: 3, minute: 0 },
+  { hourUTC: 3, minuteUTC: 0 },
   internal.proctoring.purgeExpired,
   {}
 );

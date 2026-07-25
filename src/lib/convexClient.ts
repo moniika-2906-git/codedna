@@ -8,8 +8,12 @@ const CONVEX_URL =
   import.meta.env.VITE_CONVEX_URL ??
   "https://lovely-boar-392.eu-west-1.convex.cloud";
 
-// Base URL for Convex HTTP actions (served from the same deployment as the
-// websocket client). Used by the consent screen to POST to /proctoring/consent.
-export const CONVEX_SITE_URL = CONVEX_URL;
+// Convex HTTP actions (httpAction routes) are served from the deployment's
+// *.convex.site domain, NOT *.convex.cloud (that's the websocket/client API
+// domain). Derived by replacing the domain suffix so the two stay in sync.
+export const CONVEX_SITE_URL = CONVEX_URL.replace(
+  /\.convex\.cloud$/,
+  ".convex.site"
+);
 
 export const convex = new ConvexReactClient(CONVEX_URL);

@@ -46,10 +46,10 @@ async function captureFrame(video: HTMLVideoElement): Promise<Blob | undefined> 
 
 /**
  * Loads the TinyFaceDetector model once, then every 5s counts faces in the
- * camera feed. Logs `NO_FACE` (LOW) when 0 faces are seen and
- * `MULTIPLE_FACES` (HIGH) when 2+ are seen, attaching a snapshot of the
- * current frame. A persistent condition logs exactly once until it clears,
- * so a sustained 0-face state isn't spammed every interval.
+ * camera feed. Logs `no-face` when 0 faces are seen and `multi-face` when 2+
+ * are seen, attaching a snapshot of the current frame. A persistent
+ * condition logs exactly once until it clears, so a sustained 0-face state
+ * isn't spammed every interval.
  */
 export function useFaceMonitor(
   stream: MediaStream | null,
@@ -81,24 +81,16 @@ export function useFaceMonitor(
         const results = await faceapi.detectAllFaces(video, detector);
         const count = results.length;
         if (count === 0) {
-          if (lastLoggedRef.current !== "NO_FACE") {
-            lastLoggedRef.current = "NO_FACE";
+          if (lastLoggedRef.current !== "no-face") {
+            lastLoggedRef.current = "no-face";
             const snapshot = await captureFrame(video);
-            await apiRef.current.log({
-              eventType: "NO_FACE",
-              severity: "LOW",
-              snapshot,
-            });
+            await apiRef.current.log({ eventType: "no-face", snapshot });
           }
         } else if (count >= 2) {
-          if (lastLoggedRef.current !== "MULTIPLE_FACES") {
-            lastLoggedRef.current = "MULTIPLE_FACES";
+          if (lastLoggedRef.current !== "multi-face") {
+            lastLoggedRef.current = "multi-face";
             const snapshot = await captureFrame(video);
-            await apiRef.current.log({
-              eventType: "MULTIPLE_FACES",
-              severity: "HIGH",
-              snapshot,
-            });
+            await apiRef.current.log({ eventType: "multi-face", snapshot });
           }
         } else {
           // Back to a normal single-face state; reset so the next anomaly logs.

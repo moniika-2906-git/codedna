@@ -14,15 +14,16 @@ auth.addHttpRoutes(http);
  *
  * Records the authenticated student's proctoring consent. The caller's IP is
  * read server-side from request headers (the client cannot spoof it) and the
- * caller's identity is resolved from the Bearer JWT that Convex Auth attaches,
- * then passed to the internal `proctoring.recordConsent` mutation.
+ * caller's identity is resolved from the Bearer JWT that Convex Auth attaches
+ * to this httpAction's `ctx.auth` — confirmed working via `getAuthUserId(ctx)`
+ * inside this httpAction with the client sending
+ * `Authorization: Bearer <useAuthToken()>` (see @convex-dev/auth docs: HTTP
+ * actions get `ctx.auth.getUserIdentity()` populated from that header).
  *
- * LIMITATION: Convex HTTP actions run behind Convex's own proxy, so
- * `x-forwarded-for` is the most reliable client-IP signal available here. If
- * no forwarding header is present we record `"unknown"` rather than fail, so
- * the consent row's non-null `ipAddress` schema still holds. Acceptable
- * because the primary integrity signal is the authenticated identity, not the
- * IP.
+ * The client sends ONLY `consentVersion` — never consent text. The exact
+ * text is resolved server-side in `proctoring.recordConsent` from a canonical
+ * version→text table, so a tampered client payload can never be persisted as
+ * if it were what the user actually saw.
  */
 http.route({
   path: "/proctoring/consent",
@@ -33,26 +34,24 @@ http.route({
       return new Response("Unauthorized", { status: 401 });
     }
 
-    let body: {
-      sessionId?: string;
-      consentVersion?: string;
-      consentText?: string;
-    };
+    let body: { sessionId?: string; consentVersion?: string };
     try {
       body = await request.json();
     } catch {
       return new Response("Invalid JSON body", { status: 400 });
     }
 
-    const { sessionId, consentVersion, consentText } = body;
-    if (!sessionId || !consentVersion || !consentText) {
-      return new Response("Missing sessionId, consentVersion, or consentText", {
+    const { sessionId, consentVersion } = body;
+    if (!sessionId || !consentVersion) {
+      return new Response("Missing sessionId or consentVersion", {
         status: 400,
       });
     }
 
-    // x-forwarded-for may be a comma-separated list (client, proxy1, ...);
-    // the leftmost entry is the original client IP.
+    // x-forwarded-for is often a comma-separated proxy chain
+    // ("client, proxy1, proxy2, ..."); the leftmost entry is the original
+    // client IP. Fall back to x-real-ip, then a placeholder if both are
+    // absent (e.g. local dev without a proxy in front of Convex).
     const forwarded = request.headers.get("x-forwarded-for");
     const ipAddress = forwarded
       ? forwarded.split(",")[0].trim()
@@ -64,7 +63,6 @@ http.route({
         userId,
         ipAddress,
         consentVersion,
-        consentText,
       });
     } catch (err) {
       return new Response(

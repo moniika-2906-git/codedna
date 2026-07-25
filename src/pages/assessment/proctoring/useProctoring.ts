@@ -7,7 +7,7 @@ import { useFaceMonitor } from "./useFaceMonitor";
 import { useVisibilityMonitor } from "./useVisibilityMonitor";
 import { useFullscreenMonitor } from "./useFullscreenMonitor";
 import { useAudioMonitor } from "./useAudioMonitor";
-import type { ProctoringApi, ProctoringEventType, Severity } from "./types";
+import type { ProctoringApi, ProctoringEventType } from "./types";
 
 export interface ProctoringState {
   stream: MediaStream | null;
@@ -20,7 +20,7 @@ export interface ProctoringState {
 }
 
 /**
- * Composes the five single-purpose proctoring monitors (face, audio,
+ * Composes the four single-purpose proctoring monitors (face, audio,
  * visibility, fullscreen) over a shared MediaStream, all funnelling events
  * through one `logEvent` mutation + one snapshot upload helper. Mounted inside
  * the assessment page once consent is confirmed.
@@ -39,31 +39,26 @@ export function useProctoring(
   );
 
   const log = useCallback(
-    async (args: {
-      eventType: ProctoringEventType;
-      severity: Severity;
-      snapshot?: Blob;
-    }) => {
+    async (args: { eventType: ProctoringEventType; snapshot?: Blob }) => {
       if (!sessionId) return;
       try {
-        let snapshotStorageId: Id<"_storage"> | undefined;
+        let storageId: Id<"_storage"> | undefined;
         if (args.snapshot) {
-          const uploadUrl = await generateSnapshotUploadUrl({});
+          const uploadUrl = await generateSnapshotUploadUrl({ sessionId });
           const uploadRes = await fetch(uploadUrl, {
             method: "POST",
             body: args.snapshot,
           });
           if (!uploadRes.ok) return;
-          const { storageId } = (await uploadRes.json()) as {
+          const json = (await uploadRes.json()) as {
             storageId: Id<"_storage">;
           };
-          snapshotStorageId = storageId;
+          storageId = json.storageId;
         }
         await logEvent({
           sessionId,
           eventType: args.eventType,
-          severity: args.severity,
-          snapshotStorageId,
+          storageId,
         });
       } catch {
         // Swallowed intentionally — see hook docstring.

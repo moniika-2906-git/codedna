@@ -44,17 +44,20 @@ export default defineSchema({
     ),
   }).index("by_session", ["sessionId"]),
 
-  // Proctoring consent records. Immutable once written: only `recordConsent`
-  // (internal mutation) inserts, and only the daily `purgeExpired` cron deletes.
-  // The client never writes here directly — consent is lodged via the
-  // /proctoring/consent HTTP action so the IP + identity are resolved server-side.
+  // Proctoring consent records: the audit trail proving consent was given.
+  // Insert-only — rows are NEVER deleted. `recordConsent` (internal mutation,
+  // called only from the /proctoring/consent HTTP action) is the sole inserter,
+  // and `markPurged` is the sole patcher, and it may only ever set `purgedAt`.
   proctoringSessions: defineTable({
     sessionId: v.id("sessions"),
     userId: v.id("users"),
-    consentedAt: v.number(),
-    ipAddress: v.string(),
     consentVersion: v.string(),
     consentText: v.string(),
+    ipAddress: v.string(),
+    createdAt: v.number(),
+    // Set by the retention cron once this session's events/snapshots have
+    // been purged. Undefined until then. The consent record itself persists.
+    purgedAt: v.optional(v.number()),
   }).index("by_session", ["sessionId"]),
 
   // Immutable proctoring anomaly events logged during an assessment. Each row
@@ -62,19 +65,13 @@ export default defineSchema({
   proctoringEvents: defineTable({
     sessionId: v.id("sessions"),
     eventType: v.union(
-      v.literal("NO_FACE"),
-      v.literal("MULTIPLE_FACES"),
-      v.literal("TAB_SWITCH"),
-      v.literal("FULLSCREEN_EXIT"),
-      v.literal("AUDIO_ANOMALY")
-    ),
-    severity: v.union(
-      v.literal("LOW"),
-      v.literal("MEDIUM"),
-      v.literal("HIGH")
+      v.literal("no-face"),
+      v.literal("multi-face"),
+      v.literal("tab-switch"),
+      v.literal("fullscreen-exit"),
+      v.literal("audio-anomaly")
     ),
     timestamp: v.number(),
-    snapshotStorageId: v.optional(v.id("_storage")),
-    snapshotUrl: v.optional(v.string()),
+    storageId: v.optional(v.id("_storage")),
   }).index("by_session", ["sessionId"]),
 });

@@ -13,35 +13,25 @@ import {
 import { RequireRole } from "@/components/auth/RequireRole";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { CONVEX_SITE_URL } from "@/lib/convexClient";
-
-/** Bumped when the consent wording materially changes. */
-export const CONSENT_VERSION = "v1";
+import { requestFullscreen } from "@/lib/fullscreen";
 
 /**
- * The exact bullet points rendered to the user. These double as the verbatim
- * text logged to the backend at consent time (see CONSENT_TEXT below), so the
- * stored record always matches what the candidate was shown.
+ * Must match the key used server-side in `convex/proctoring.ts`
+ * (CONSENT_TEXT_BY_VERSION). This page only ever displays the bullets and
+ * sends this version string — the canonical consent text is resolved and
+ * persisted server-side, never submitted by the client.
  */
-export const CONSENT_BULLETS = [
-  "We will access your camera",
-  "We will access your microphone",
-  "We will capture periodic snapshots during your session",
-  "We will detect tab switches and fullscreen exits",
-  "Data is retained for 90 days then deleted",
-] as const;
+const CONSENT_VERSION = "v1";
 
-// Exact text persisted in the consent record. Kept in sync with CONSENT_BULLETS
-// so auditing can confirm the candidate saw precisely this wording.
-export const CONSENT_TEXT = [
-  `CodeDNA assessment proctoring consent (${CONSENT_VERSION}):`,
-  ...CONSENT_BULLETS,
-].join("\n");
+const CONSENT_ITEMS = [
+  { icon: Camera, text: "We will access your camera" },
+  { icon: Mic, text: "We will access your microphone" },
+  { icon: ImageIcon, text: "We will capture periodic snapshots during your session" },
+  { icon: Square, text: "We will detect tab switches and fullscreen exits" },
+  { icon: Clock, text: "Data is retained for 90 days then deleted" },
+] as const;
 
 const ConsentContent = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -57,6 +47,21 @@ const ConsentContent = () => {
     if (!agreed || isSubmitting || !sessionId) return;
     setIsSubmitting(true);
     setError(null);
+
+    // Fullscreen must be requested (and granted) on this consent→assessment
+    // transition, while we still have user-activation from the click, and
+    // BEFORE navigating — otherwise fullscreen-exit detection during the
+    // assessment would have no baseline "in fullscreen" state to exit from.
+    // If the browser/user denies it, block starting entirely.
+    const enteredFullscreen = await requestFullscreen();
+    if (!enteredFullscreen) {
+      setError(
+        "Fullscreen is required to start this assessment. Please allow fullscreen and try again."
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const res = await fetch(`${CONVEX_SITE_URL}/proctoring/consent`, {
         method: "POST",
@@ -64,26 +69,31 @@ const ConsentContent = () => {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
+        // Only the version is sent — the server looks up the canonical text
+        // itself so a client can never submit text that differs from what
+        // was actually displayed.
         body: JSON.stringify({
           sessionId,
           consentVersion: CONSENT_VERSION,
-          consentText: CONSENT_TEXT,
         }),
       });
       if (res.status === 401) {
         setError("Your session has expired. Please sign in again.");
         setIsSubmitting(false);
+        void document.exitFullscreen?.().catch(() => {});
         return;
       }
       if (!res.ok) {
         setError("Could not record consent. Please try again.");
         setIsSubmitting(false);
+        void document.exitFullscreen?.().catch(() => {});
         return;
       }
       navigate(`/assessment/${sessionId}`, { replace: true });
     } catch {
       setError("Network error. Please try again.");
       setIsSubmitting(false);
+      void document.exitFullscreen?.().catch(() => {});
     }
   };
 
@@ -104,28 +114,7 @@ const ConsentContent = () => {
         </CardHeader>
         <CardContent>
           <ul className="space-y-3" aria-label="What we will do">
-            {[
-              {
-                icon: Camera,
-                text: CONSENT_BULLETS[0],
-              },
-              {
-                icon: Mic,
-                text: CONSENT_BULLETS[1],
-              },
-              {
-                icon: ImageIcon,
-                text: CONSENT_BULLETS[2],
-              },
-              {
-                icon: Square,
-                text: CONSENT_BULLETS[3],
-              },
-              {
-                icon: Clock,
-                text: CONSENT_BULLETS[4],
-              },
-            ].map(({ icon: Icon, text }) => (
+            {CONSENT_ITEMS.map(({ icon: Icon, text }) => (
               <li
                 key={text}
                 className="flex items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2.5"
@@ -143,7 +132,7 @@ const ConsentContent = () => {
               <Checkbox
                 checked={agreed}
                 onCheckedChange={(v) => setAgreed(v === true)}
-                className="mt-0.5 border-zinc-600 data-[state=checked]:bg-indigo-500 data-[state=checked]:border-indigo-500"
+                className="mt-0.5 border-zinc-600 data-[state=checked]:border-indigo-500 data-[state=checked]:bg-indigo-500"
               />
               <span>
                 I have read and agree to the proctoring terms described above.

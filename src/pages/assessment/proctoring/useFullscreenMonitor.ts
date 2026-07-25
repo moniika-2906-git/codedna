@@ -2,9 +2,14 @@ import { useEffect, useRef } from "react";
 import type { ProctoringApi } from "./types";
 
 /**
- * Logs a `FULLSCREEN_EXIT` (MEDIUM) event when the document leaves
- * fullscreen while proctoring is active. Only transitions *out* of fullscreen
- * are logged; if the user never entered fullscreen, nothing fires.
+ * Logs a `fullscreen-exit` event when the document leaves fullscreen while
+ * proctoring is active. Only transitions *out* of fullscreen are logged.
+ *
+ * Real users always have a fullscreen baseline to exit from: the consent
+ * page (`src/pages/consent/index.tsx`) requires and enters fullscreen on the
+ * consent→assessment transition, blocking the transition entirely if the
+ * browser/user denies it. Without that guarantee this monitor could never
+ * fire for a real candidate.
  */
 export function useFullscreenMonitor(api: ProctoringApi, enabled: boolean) {
   const apiRef = useRef(api);
@@ -19,10 +24,7 @@ export function useFullscreenMonitor(api: ProctoringApi, enabled: boolean) {
     const handler = () => {
       const inFullscreen = !!document.fullscreenElement;
       if (!inFullscreen && wasFullscreenRef.current) {
-        void apiRef.current.log({
-          eventType: "FULLSCREEN_EXIT",
-          severity: "MEDIUM",
-        });
+        void apiRef.current.log({ eventType: "fullscreen-exit" });
       }
       wasFullscreenRef.current = inFullscreen;
     };

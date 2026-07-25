@@ -11,7 +11,7 @@ const COOLDOWN_MS = 5000;
 
 /**
  * Feeds the microphone track into a Web Audio AnalyserNode and polls RMS
- * volume via requestAnimationFrame. Logs `AUDIO_ANOMALY` (LOW) only when the
+ * volume via requestAnimationFrame. Logs `audio-anomaly` only when the
  * volume stays above the threshold for a sustained window — brief transients
  * reset the window and never fire — and debounces repeat events.
  */
@@ -67,10 +67,7 @@ export function useAudioMonitor(
           ) {
             lastLoggedAt = now;
             loudSince = now; // restart the sustained window after firing
-            void apiRef.current.log({
-              eventType: "AUDIO_ANOMALY",
-              severity: "LOW",
-            });
+            void apiRef.current.log({ eventType: "audio-anomaly" });
           }
         } else {
           // Dropped below threshold: a later loud period must sustain again.
