@@ -10,6 +10,51 @@ const http = httpRouter();
 auth.addHttpRoutes(http);
 
 /**
+ * CORS headers for the /proctoring/consent endpoint. The browser origin is
+ * reflected back (rather than hardcoded) because this app is served from a
+ * per-preview/per-deploy subdomain (e.g. Enter's live-preview.enterapp.pro
+ * hosts) that isn't known ahead of time. `Vary: Origin` tells caches the
+ * response differs per origin.
+ */
+function corsHeaders(request: Request): HeadersInit {
+  const origin = request.headers.get("Origin");
+  return {
+    "Access-Control-Allow-Origin": origin ?? "*",
+    Vary: "Origin",
+  };
+}
+
+/**
+ * Handles the browser's automatic CORS preflight for POST /proctoring/consent
+ * (triggered because the real request carries a JSON Content-Type and an
+ * Authorization header). Without this, the browser blocks the actual POST
+ * before it ever reaches the server, surfacing as "TypeError: Failed to
+ * fetch" — the request never leaves the browser.
+ */
+http.route({
+  path: "/proctoring/consent",
+  method: "OPTIONS",
+  handler: httpAction(async (_ctx, request) => {
+    const headers = request.headers;
+    if (
+      headers.get("Origin") !== null &&
+      headers.get("Access-Control-Request-Method") !== null &&
+      headers.get("Access-Control-Request-Headers") !== null
+    ) {
+      return new Response(null, {
+        headers: new Headers({
+          ...corsHeaders(request),
+          "Access-Control-Allow-Methods": "POST",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          "Access-Control-Max-Age": "86400",
+        }),
+      });
+    }
+    return new Response();
+  }),
+});
+
+/**
  * POST /proctoring/consent
  *
  * Records the authenticated student's proctoring consent. The caller's IP is
@@ -31,20 +76,27 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
-      return new Response("Unauthorized", { status: 401 });
+      return new Response("Unauthorized", {
+        status: 401,
+        headers: corsHeaders(request),
+      });
     }
 
     let body: { sessionId?: string; consentVersion?: string };
     try {
       body = await request.json();
     } catch {
-      return new Response("Invalid JSON body", { status: 400 });
+      return new Response("Invalid JSON body", {
+        status: 400,
+        headers: corsHeaders(request),
+      });
     }
 
     const { sessionId, consentVersion } = body;
     if (!sessionId || !consentVersion) {
       return new Response("Missing sessionId or consentVersion", {
         status: 400,
+        headers: corsHeaders(request),
       });
     }
 
@@ -67,13 +119,16 @@ http.route({
     } catch (err) {
       return new Response(
         err instanceof Error ? err.message : "Failed to record consent",
-        { status: 400 }
+        { status: 400, headers: corsHeaders(request) }
       );
     }
 
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...corsHeaders(request),
+      },
     });
   }),
 });
