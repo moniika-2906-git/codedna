@@ -2,6 +2,7 @@
 
 import { action } from "./_generated/server";
 import { v } from "convex/values";
+import { exec } from "swytchcode-runtime";
 
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
@@ -45,6 +46,20 @@ async function askGroq(prompt: string, code: string) {
   );
 }
 
+async function askChatGPT(prompt: string, code: string) {
+  const result = await exec("openai.completion.create", {
+    body: {
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: buildPrompt(prompt, code) }],
+    },
+    Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+  });
+  return (
+    result?.choices?.[0]?.message?.content ||
+    "Sorry, I couldn't generate a response."
+  );
+}
+
 export const ask = action({
   args: {
     prompt: v.string(),
@@ -59,10 +74,8 @@ export const ask = action({
   handler: async (ctx, { prompt, code, agent }) => {
     if (agent === "gemini") return askGemini(prompt, code);
     if (agent === "groq") return askGroq(prompt, code);
+    if (agent === "chatgpt") return askChatGPT(prompt, code);
 
-    // Claude and ChatGPT are architecturally supported (same pattern as
-    // above) but not yet enabled — kept honest for demo purposes since
-    // they require funded API credits rather than a free tier.
-    return "This agent will be enabled after we secure API credits post-selection. Try Gemini or Groq for a live response.";
+    return "This agent will be enabled after we secure API credits post-selection. Try Gemini, Groq, or ChatGPT for a live response.";
   },
 });

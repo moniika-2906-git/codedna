@@ -11,7 +11,7 @@ const Hero = () => {
 
       <div className="relative mx-auto flex max-w-3xl flex-col items-center text-center">
         <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-4 py-1.5 text-sm text-zinc-400">
-          POWERED BY MICROSOFT AZURE
+          
         </div>
 
         <h1 className="text-4xl font-bold tracking-tight text-zinc-100 sm:text-5xl lg:text-6xl">
@@ -43,7 +43,7 @@ const Hero = () => {
 </Button>
         </div>
 
-        <p className="mt-4 text-xs text-zinc-600">Team Unique Brains</p>
+        <p className="mt-4 text-xs text-zinc-600">Team Nexus Arc</p>
       </div>
     </section>
   );
